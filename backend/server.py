@@ -546,7 +546,7 @@ async def run_audit(audit_request: AuditRequest, current_user: User = Depends(ge
     try:
         if audit_request.audit_type == "All":
             # Run all audits
-            ssl_result = await auditor.audit_ssl(website_obj.url)
+            ssl_result = await auditor.audit_security(website_obj.url)
             performance_result = await auditor.audit_performance(website_obj.url)
             seo_result = await auditor.audit_seo(website_obj.url)
             

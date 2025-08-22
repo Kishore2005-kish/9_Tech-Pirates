@@ -372,14 +372,17 @@ const Dashboard = ({ user, token, onLogout }) => {
               <CardContent>
                 <div className="space-y-4">
                   {selectedReport.issues.map((issue, index) => (
-                    <div key={index} className="border-l-4 border-red-400 pl-4 py-2">
-                      <div className="flex items-center justify-between mb-1">
+                    <div key={index} className={`border-l-4 pl-4 py-3 rounded-r-lg ${getSeverityColor(issue.severity)}`}>
+                      <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium text-gray-900">{issue.issue}</h4>
-                        <Badge variant={issue.severity === 'high' ? 'destructive' : issue.severity === 'medium' ? 'default' : 'secondary'}>
+                        <Badge variant={getSeverityBadgeVariant(issue.severity)} className="capitalize">
                           {issue.severity}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600">{issue.description}</p>
+                      <p className="text-sm text-gray-700 mb-2">{issue.description}</p>
+                      {issue.impact && (
+                        <p className="text-xs text-gray-600 italic">Impact: {issue.impact}</p>
+                      )}
                     </div>
                   ))}
                   {selectedReport.issues.length === 0 && (

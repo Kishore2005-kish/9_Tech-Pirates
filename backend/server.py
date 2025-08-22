@@ -492,7 +492,7 @@ class WebsiteAuditor:
 
     @staticmethod
     async def audit_seo(url: str) -> Dict[str, Any]:
-        """Perform SEO audit"""
+        """Perform comprehensive SEO audit"""
         try:
             issues = []
             score = 100
@@ -506,18 +506,30 @@ class WebsiteAuditor:
                     title = soup.find('title')
                     if not title or not title.text.strip():
                         issues.append({
-                            "severity": "high",
+                            "severity": "critical",
                             "issue": "Missing or empty title tag",
-                            "description": "Page title is crucial for SEO"
+                            "description": "Page title is crucial for SEO and user experience",
+                            "impact": "Poor search engine rankings and click-through rates"
                         })
-                        score -= 20
-                    elif len(title.text) > 60:
-                        issues.append({
-                            "severity": "medium",
-                            "issue": "Title tag too long",
-                            "description": f"Title is {len(title.text)} characters (should be under 60)"
-                        })
-                        score -= 10
+                        score -= 25
+                    else:
+                        title_length = len(title.text)
+                        if title_length > 60:
+                            issues.append({
+                                "severity": "medium",
+                                "issue": "Title tag too long",
+                                "description": f"Title is {title_length} characters (recommended: 50-60)",
+                                "impact": "Title may be truncated in search results"
+                            })
+                            score -= 10
+                        elif title_length < 30:
+                            issues.append({
+                                "severity": "medium",
+                                "issue": "Title tag too short",
+                                "description": f"Title is {title_length} characters (recommended: 50-60)",
+                                "impact": "Missing opportunities for keyword optimization"
+                            })
+                            score -= 8
                     
                     # Check meta description
                     meta_desc = soup.find('meta', attrs={'name': 'description'})
@@ -525,33 +537,72 @@ class WebsiteAuditor:
                         issues.append({
                             "severity": "high",
                             "issue": "Missing meta description",
-                            "description": "Meta description helps search engines understand page content"
+                            "description": "Meta description helps search engines understand page content",
+                            "impact": "Reduced click-through rates from search results"
                         })
                         score -= 20
-                    elif len(meta_desc.get('content', '')) > 160:
+                    else:
+                        desc_length = len(meta_desc.get('content', ''))
+                        if desc_length > 160:
+                            issues.append({
+                                "severity": "medium",
+                                "issue": "Meta description too long",
+                                "description": f"Meta description is {desc_length} characters (recommended: 150-160)",
+                                "impact": "Description may be truncated in search results"
+                            })
+                            score -= 8
+                        elif desc_length < 120:
+                            issues.append({
+                                "severity": "low",
+                                "issue": "Meta description could be longer",
+                                "description": f"Meta description is {desc_length} characters (optimal: 150-160)",
+                                "impact": "Missing opportunities to attract clicks"
+                            })
+                            score -= 5
+                    
+                    # Check meta keywords (deprecated but some still use)
+                    meta_keywords = soup.find('meta', attrs={'name': 'keywords'})
+                    if meta_keywords:
                         issues.append({
-                            "severity": "medium",
-                            "issue": "Meta description too long",
-                            "description": f"Meta description is {len(meta_desc.get('content', ''))} characters (should be under 160)"
+                            "severity": "low",
+                            "issue": "Meta keywords tag detected",
+                            "description": "Meta keywords are ignored by search engines",
+                            "impact": "Wasted effort - remove to clean up code"
                         })
-                        score -= 10
+                        score -= 3
                     
                     # Check heading structure
                     h1_tags = soup.find_all('h1')
                     if len(h1_tags) == 0:
                         issues.append({
-                            "severity": "medium",
+                            "severity": "high",
                             "issue": "Missing H1 tag",
-                            "description": "H1 tag is important for SEO and accessibility"
+                            "description": "H1 tag is important for SEO and content structure",
+                            "impact": "Reduced search engine understanding of page topic"
                         })
-                        score -= 15
+                        score -= 18
                     elif len(h1_tags) > 1:
                         issues.append({
-                            "severity": "low",
+                            "severity": "medium",
                             "issue": "Multiple H1 tags",
-                            "description": f"Found {len(h1_tags)} H1 tags (recommended: 1 per page)"
+                            "description": f"Found {len(h1_tags)} H1 tags (recommended: 1 per page)",
+                            "impact": "Confusing content hierarchy for search engines"
                         })
-                        score -= 5
+                        score -= 10
+                    
+                    # Check heading hierarchy
+                    h2_tags = soup.find_all('h2')
+                    h3_tags = soup.find_all('h3')
+                    h4_tags = soup.find_all('h4')
+                    
+                    if len(h1_tags) > 0 and len(h2_tags) == 0 and len(h3_tags) > 0:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Poor heading hierarchy",
+                            "description": "H3 tags found without H2 tags",
+                            "impact": "Confusing content structure for search engines"
+                        })
+                        score -= 8
                     
                     # Check for images without alt text
                     images = soup.find_all('img')
@@ -560,9 +611,22 @@ class WebsiteAuditor:
                         issues.append({
                             "severity": "medium",
                             "issue": "Images missing alt text",
-                            "description": f"{len(images_without_alt)} images are missing alt text"
+                            "description": f"{len(images_without_alt)} of {len(images)} images are missing alt text",
+                            "impact": "Poor accessibility and missed SEO opportunities"
                         })
-                        score -= 15
+                        score -= 12
+                    
+                    # Check for images with generic alt text
+                    generic_alt_texts = ['image', 'photo', 'picture', 'img', 'logo']
+                    generic_alt_images = [img for img in images if img.get('alt', '').lower().strip() in generic_alt_texts]
+                    if generic_alt_images:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Generic alt text detected",
+                            "description": f"{len(generic_alt_images)} images have generic alt text",
+                            "impact": "Missed opportunities for descriptive content"
+                        })
+                        score -= 5
                     
                     # Check for mobile viewport meta tag
                     viewport = soup.find('meta', attrs={'name': 'viewport'})
@@ -570,7 +634,8 @@ class WebsiteAuditor:
                         issues.append({
                             "severity": "high",
                             "issue": "Missing viewport meta tag",
-                            "description": "Viewport meta tag is essential for mobile responsiveness"
+                            "description": "Viewport meta tag is essential for mobile responsiveness",
+                            "impact": "Poor mobile search rankings and user experience"
                         })
                         score -= 20
                     
@@ -578,34 +643,137 @@ class WebsiteAuditor:
                     canonical = soup.find('link', attrs={'rel': 'canonical'})
                     if not canonical:
                         issues.append({
-                            "severity": "low",
+                            "severity": "medium",
                             "issue": "Missing canonical URL",
-                            "description": "Canonical URL helps prevent duplicate content issues"
+                            "description": "Canonical URL helps prevent duplicate content issues",
+                            "impact": "Potential duplicate content penalties"
+                        })
+                        score -= 8
+                    
+                    # Check for Open Graph tags
+                    og_title = soup.find('meta', attrs={'property': 'og:title'})
+                    og_description = soup.find('meta', attrs={'property': 'og:description'})
+                    og_image = soup.find('meta', attrs={'property': 'og:image'})
+                    
+                    if not og_title or not og_description:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Missing Open Graph tags",
+                            "description": "OG tags improve social media sharing appearance",
+                            "impact": "Poor social media preview and sharing"
+                        })
+                        score -= 10
+                    
+                    # Check for Twitter Card tags
+                    twitter_card = soup.find('meta', attrs={'name': 'twitter:card'})
+                    if not twitter_card:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Missing Twitter Card tags",
+                            "description": "Twitter Card tags enhance Twitter sharing",
+                            "impact": "Suboptimal Twitter sharing experience"
                         })
                         score -= 5
                     
                     # Check internal linking
                     internal_links = soup.find_all('a', href=True)
-                    internal_count = len([link for link in internal_links if urlparse(link['href']).netloc == ''])
+                    internal_count = len([link for link in internal_links if urlparse(link['href']).netloc == '' or urlparse(url).netloc in link['href']])
+                    external_count = len(internal_links) - internal_count
+                    
                     if internal_count < 3:
                         issues.append({
-                            "severity": "low",
+                            "severity": "medium",
                             "issue": "Few internal links",
-                            "description": "Internal linking helps with site navigation and SEO"
+                            "description": f"Found only {internal_count} internal links",
+                            "impact": "Poor site navigation and link equity distribution"
+                        })
+                        score -= 8
+                    
+                    # Check for external links without rel attributes
+                    external_links_no_rel = [link for link in internal_links 
+                                           if urlparse(link['href']).netloc != '' 
+                                           and urlparse(url).netloc not in link['href'] 
+                                           and not link.get('rel')]
+                    if external_links_no_rel:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "External links without rel attributes",
+                            "description": f"{len(external_links_no_rel)} external links missing rel='noopener' or rel='nofollow'",
+                            "impact": "Potential security and SEO link equity issues"
                         })
                         score -= 5
+                    
+                    # Check for structured data (JSON-LD)
+                    json_ld_scripts = soup.find_all('script', type='application/ld+json')
+                    if not json_ld_scripts:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "No structured data detected",
+                            "description": "Structured data helps search engines understand content",
+                            "impact": "Missing rich snippet opportunities"
+                        })
+                        score -= 8
+                    
+                    # Check page loading speed impact on SEO
+                    # This is already covered in performance audit, but we'll note it for SEO
+                    
+                    # Check for robots meta tag
+                    robots_meta = soup.find('meta', attrs={'name': 'robots'})
+                    if robots_meta and 'noindex' in robots_meta.get('content', '').lower():
+                        issues.append({
+                            "severity": "critical",
+                            "issue": "Page set to noindex",
+                            "description": "Page has robots meta tag with noindex directive",
+                            "impact": "Page will not appear in search results"
+                        })
+                        score -= 30
+                    
+                    # Check content length
+                    # Remove script and style content for accurate text count
+                    for script in soup(["script", "style"]):
+                        script.decompose()
+                    text_content = soup.get_text()
+                    word_count = len(text_content.split())
+                    
+                    if word_count < 300:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Thin content detected",
+                            "description": f"Page has only {word_count} words (recommended: 300+)",
+                            "impact": "Insufficient content for good search rankings"
+                        })
+                        score -= 15
+                    
+                    # Check for HTTPS (SEO ranking factor)
+                    parsed_url = urlparse(url)
+                    if parsed_url.scheme != 'https':
+                        issues.append({
+                            "severity": "high",
+                            "issue": "Not using HTTPS",
+                            "description": "HTTPS is a ranking factor for search engines",
+                            "impact": "Lower search rankings and user trust"
+                        })
+                        score -= 20
             
             return {
                 "score": max(0, score),
                 "issues": issues,
                 "recommendations": [
-                    "Optimize title tags (50-60 characters)",
+                    "Optimize title tags (50-60 characters, include primary keywords)",
                     "Write compelling meta descriptions (150-160 characters)",
-                    "Use proper heading hierarchy (H1, H2, H3)",
-                    "Add alt text to all images",
+                    "Use proper heading hierarchy (H1, H2, H3) with keywords",
+                    "Add descriptive alt text to all images",
                     "Ensure mobile responsiveness with viewport meta tag",
-                    "Implement internal linking strategy",
-                    "Use canonical URLs to prevent duplicate content"
+                    "Implement canonical URLs to prevent duplicate content",
+                    "Add Open Graph and Twitter Card meta tags",
+                    "Create internal linking strategy for better navigation",
+                    "Add structured data markup for rich snippets",
+                    "Create substantial, valuable content (300+ words)",
+                    "Use HTTPS for security and SEO benefits",
+                    "Optimize page loading speed (affects SEO rankings)",
+                    "Use descriptive, keyword-rich URLs",
+                    "Create and submit XML sitemap",
+                    "Optimize for local SEO if applicable"
                 ]
             }
             
@@ -613,9 +781,10 @@ class WebsiteAuditor:
             return {
                 "score": 0,
                 "issues": [{
-                    "severity": "high",
+                    "severity": "critical",
                     "issue": "SEO audit failed",
-                    "description": f"Could not perform SEO audit: {str(e)}"
+                    "description": f"Could not perform SEO audit: {str(e)}",
+                    "impact": "Unable to assess SEO optimization"
                 }],
                 "recommendations": ["Ensure website is accessible and try again"]
             }

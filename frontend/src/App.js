@@ -508,12 +508,12 @@ const Dashboard = ({ user, token, onLogout }) => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => runAudit(website.id, 'SSL')}
+                        onClick={() => runAudit(website.id, 'Security')}
                         disabled={auditLoading === website.id}
                         className="flex items-center"
                       >
                         <Shield className="w-4 h-4 mr-1" />
-                        SSL
+                        Security
                       </Button>
                       <Button
                         size="sm"
@@ -537,18 +537,28 @@ const Dashboard = ({ user, token, onLogout }) => {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => runAudit(website.id, 'All')}
+                        variant="outline"
+                        onClick={() => runAudit(website.id, 'Accessibility')}
                         disabled={auditLoading === website.id}
                         className="flex items-center"
                       >
-                        {auditLoading === website.id ? (
-                          <Clock className="w-4 h-4 mr-1 animate-spin" />
-                        ) : (
-                          <BarChart3 className="w-4 h-4 mr-1" />
-                        )}
-                        Full Audit
+                        <Users className="w-4 h-4 mr-1" />
+                        A11y
                       </Button>
                     </div>
+                    <Button
+                      size="sm"
+                      onClick={() => runAudit(website.id, 'All')}
+                      disabled={auditLoading === website.id}
+                      className="flex items-center w-full mt-2"
+                    >
+                      {auditLoading === website.id ? (
+                        <Clock className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <BarChart3 className="w-4 h-4 mr-1" />
+                      )}
+                      Full Audit
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

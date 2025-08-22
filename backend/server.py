@@ -114,8 +114,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 # Audit Scripts
 class WebsiteAuditor:
     @staticmethod
-    async def audit_ssl(url: str) -> Dict[str, Any]:
-        """Perform SSL certificate audit"""
+    async def audit_security(url: str) -> Dict[str, Any]:
+        """Perform comprehensive security audit"""
         try:
             parsed_url = urlparse(url)
             hostname = parsed_url.hostname
@@ -124,11 +124,13 @@ class WebsiteAuditor:
             issues = []
             score = 100
             
+            # Check HTTPS
             if parsed_url.scheme != 'https':
                 issues.append({
-                    "severity": "high",
+                    "severity": "critical",
                     "issue": "Website does not use HTTPS",
-                    "description": "The website is not secured with SSL/TLS encryption"
+                    "description": "The website is not secured with SSL/TLS encryption",
+                    "impact": "Data transmission is unencrypted and vulnerable to interception"
                 })
                 score -= 50
             else:
@@ -145,35 +147,109 @@ class WebsiteAuditor:
                             
                             if days_until_expiry < 30:
                                 issues.append({
-                                    "severity": "medium",
+                                    "severity": "high" if days_until_expiry < 7 else "medium",
                                     "issue": "SSL certificate expires soon",
-                                    "description": f"Certificate expires in {days_until_expiry} days"
+                                    "description": f"Certificate expires in {days_until_expiry} days",
+                                    "impact": "Website will become inaccessible when certificate expires"
                                 })
-                                score -= 20
-                            elif days_until_expiry < 7:
-                                issues.append({
-                                    "severity": "high",
-                                    "issue": "SSL certificate expires very soon",
-                                    "description": f"Certificate expires in {days_until_expiry} days"
-                                })
-                                score -= 40
-                                
+                                score -= 30 if days_until_expiry < 7 else 15
                 except Exception as e:
                     issues.append({
                         "severity": "high",
                         "issue": "SSL certificate validation failed",
-                        "description": f"Could not validate SSL certificate: {str(e)}"
+                        "description": f"Could not validate SSL certificate: {str(e)}",
+                        "impact": "Unable to verify SSL security"
                     })
                     score -= 30
+            
+            # Check security headers
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=30) as response:
+                    headers = response.headers
+                    
+                    # Check for security headers
+                    security_headers = {
+                        'Strict-Transport-Security': 'HSTS header missing - forces HTTPS',
+                        'X-Content-Type-Options': 'MIME type sniffing protection missing',
+                        'X-Frame-Options': 'Clickjacking protection missing',
+                        'X-XSS-Protection': 'XSS protection header missing',
+                        'Content-Security-Policy': 'Content Security Policy missing',
+                        'Referrer-Policy': 'Referrer policy not configured'
+                    }
+                    
+                    for header, description in security_headers.items():
+                        if header not in headers:
+                            severity = "high" if header in ['Strict-Transport-Security', 'Content-Security-Policy'] else "medium"
+                            issues.append({
+                                "severity": severity,
+                                "issue": f"Missing {header} header",
+                                "description": description,
+                                "impact": "Reduced protection against various web attacks"
+                            })
+                            score -= 15 if severity == "high" else 8
+                    
+                    # Check for insecure headers
+                    server_header = headers.get('Server', '')
+                    if server_header:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Server header reveals software information",
+                            "description": f"Server: {server_header}",
+                            "impact": "Information disclosure may help attackers"
+                        })
+                        score -= 5
+                    
+                    # Check content for potential vulnerabilities
+                    content = await response.text()
+                    soup = BeautifulSoup(content, 'html.parser')
+                    
+                    # Check for inline JavaScript (potential XSS risk)
+                    inline_scripts = soup.find_all('script', src=False)
+                    if len(inline_scripts) > 2:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Multiple inline JavaScript blocks detected",
+                            "description": f"Found {len(inline_scripts)} inline script blocks",
+                            "impact": "Increased XSS attack surface"
+                        })
+                        score -= 10
+                    
+                    # Check for forms without CSRF protection indicators
+                    forms = soup.find_all('form')
+                    for form in forms:
+                        if not form.find('input', {'name': re.compile(r'csrf|token', re.I)}):
+                            issues.append({
+                                "severity": "medium",
+                                "issue": "Form potentially missing CSRF protection",
+                                "description": "Form found without apparent CSRF token",
+                                "impact": "Vulnerable to Cross-Site Request Forgery attacks"
+                            })
+                            score -= 12
+                            break  # Only report once
+                    
+                    # Check for mixed content
+                    if parsed_url.scheme == 'https':
+                        http_resources = re.findall(r'http://[^\s"\'<>]+', content)
+                        if http_resources:
+                            issues.append({
+                                "severity": "medium",
+                                "issue": "Mixed content detected",
+                                "description": f"Found {len(http_resources)} HTTP resources on HTTPS page",
+                                "impact": "Browsers may block insecure content"
+                            })
+                            score -= 15
             
             return {
                 "score": max(0, score),
                 "issues": issues,
                 "recommendations": [
-                    "Enable HTTPS for all pages",
-                    "Use strong SSL/TLS protocols (TLS 1.2+)",
-                    "Monitor certificate expiry dates",
-                    "Implement HTTP to HTTPS redirects"
+                    "Enable HTTPS for all pages and resources",
+                    "Implement security headers (HSTS, CSP, X-Frame-Options)",
+                    "Use CSRF tokens in all forms",
+                    "Remove or obscure server information headers",
+                    "Implement Content Security Policy",
+                    "Regular security updates and vulnerability scanning",
+                    "Use secure coding practices to prevent XSS"
                 ]
             }
             
@@ -181,9 +257,10 @@ class WebsiteAuditor:
             return {
                 "score": 0,
                 "issues": [{
-                    "severity": "high",
-                    "issue": "SSL audit failed",
-                    "description": f"Could not perform SSL audit: {str(e)}"
+                    "severity": "critical",
+                    "issue": "Security audit failed",
+                    "description": f"Could not perform security audit: {str(e)}",
+                    "impact": "Unable to assess security posture"
                 }],
                 "recommendations": ["Ensure website is accessible and try again"]
             }

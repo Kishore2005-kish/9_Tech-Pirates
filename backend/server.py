@@ -1135,14 +1135,20 @@ async def run_audit(audit_request: AuditRequest, current_user: User = Depends(ge
     try:
         if audit_request.audit_type == "All":
             # Run all audits
-            ssl_result = await auditor.audit_security(website_obj.url)
+            security_result = await auditor.audit_security(website_obj.url)
             performance_result = await auditor.audit_performance(website_obj.url)
             seo_result = await auditor.audit_seo(website_obj.url)
+            accessibility_result = await auditor.audit_accessibility(website_obj.url)
             
             # Combine results
-            all_issues = ssl_result["issues"] + performance_result["issues"] + seo_result["issues"]
-            avg_score = (ssl_result["score"] + performance_result["score"] + seo_result["score"]) // 3
-            all_recommendations = list(set(ssl_result["recommendations"] + performance_result["recommendations"] + seo_result["recommendations"]))
+            all_issues = (security_result["issues"] + performance_result["issues"] + 
+                         seo_result["issues"] + accessibility_result["issues"])
+            avg_score = (security_result["score"] + performance_result["score"] + 
+                        seo_result["score"] + accessibility_result["score"]) // 4
+            all_recommendations = list(set(security_result["recommendations"] + 
+                                         performance_result["recommendations"] + 
+                                         seo_result["recommendations"] + 
+                                         accessibility_result["recommendations"]))
             
             audit_report = AuditReport(
                 website_id=audit_request.website_id,
@@ -1153,7 +1159,8 @@ async def run_audit(audit_request: AuditRequest, current_user: User = Depends(ge
             )
             
             # Also save individual reports
-            for audit_type, result in [("Security", ssl_result), ("Performance", performance_result), ("SEO", seo_result)]:
+            for audit_type, result in [("Security", security_result), ("Performance", performance_result), 
+                                     ("SEO", seo_result), ("Accessibility", accessibility_result)]:
                 individual_report = AuditReport(
                     website_id=audit_request.website_id,
                     audit_type=audit_type,
@@ -1171,6 +1178,8 @@ async def run_audit(audit_request: AuditRequest, current_user: User = Depends(ge
                 result = await auditor.audit_performance(website_obj.url)
             elif audit_request.audit_type == "SEO":
                 result = await auditor.audit_seo(website_obj.url)
+            elif audit_request.audit_type == "Accessibility":
+                result = await auditor.audit_accessibility(website_obj.url)
             else:
                 raise HTTPException(status_code=400, detail="Invalid audit type")
             

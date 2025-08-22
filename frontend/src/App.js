@@ -278,10 +278,24 @@ const Dashboard = ({ user, token, onLogout }) => {
     }
   };
 
-  const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600 bg-green-100';
-    if (score >= 60) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'critical': return 'text-red-700 bg-red-100 border-red-200';
+      case 'high': return 'text-red-600 bg-red-50 border-red-200';
+      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'low': return 'text-blue-600 bg-blue-50 border-blue-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getSeverityBadgeVariant = (severity) => {
+    switch (severity) {
+      case 'critical': return 'destructive';
+      case 'high': return 'destructive';
+      case 'medium': return 'default';
+      case 'low': return 'secondary';
+      default: return 'secondary';
+    }
   };
 
   const getLatestReports = () => {

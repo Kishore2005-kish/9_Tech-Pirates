@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "./components/ui/alert";
 import { Badge } from "./components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Progress } from "./components/ui/progress";
-import { Shield, Zap, Search, Globe, Plus, BarChart3, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Shield, Zap, Search, Globe, Plus, BarChart3, AlertTriangle, CheckCircle, Clock, Users } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;

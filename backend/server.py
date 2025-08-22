@@ -789,6 +789,291 @@ class WebsiteAuditor:
                 "recommendations": ["Ensure website is accessible and try again"]
             }
 
+    @staticmethod
+    async def audit_accessibility(url: str) -> Dict[str, Any]:
+        """Perform comprehensive accessibility audit"""
+        try:
+            issues = []
+            score = 100
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    content = await response.text()
+                    soup = BeautifulSoup(content, 'html.parser')
+                    
+                    # Check for alt text on images
+                    images = soup.find_all('img')
+                    images_without_alt = [img for img in images if not img.get('alt')]
+                    decorative_images = [img for img in images if img.get('alt') == '']
+                    
+                    if images_without_alt:
+                        issues.append({
+                            "severity": "high",
+                            "issue": "Images missing alt attributes",
+                            "description": f"{len(images_without_alt)} of {len(images)} images lack alt attributes",
+                            "impact": "Screen readers cannot describe images to visually impaired users"
+                        })
+                        score -= 20
+                    
+                    # Check for form labels
+                    form_inputs = soup.find_all('input', type=lambda x: x not in ['hidden', 'submit', 'button'])
+                    inputs_without_labels = []
+                    
+                    for input_elem in form_inputs:
+                        input_id = input_elem.get('id')
+                        input_name = input_elem.get('name')
+                        
+                        # Check for associated label
+                        label_found = False
+                        if input_id:
+                            label = soup.find('label', attrs={'for': input_id})
+                            if label:
+                                label_found = True
+                        
+                        # Check for aria-label
+                        if not label_found and not input_elem.get('aria-label'):
+                            # Check for aria-labelledby
+                            if not input_elem.get('aria-labelledby'):
+                                # Check if wrapped in label
+                                parent_label = input_elem.find_parent('label')
+                                if not parent_label:
+                                    inputs_without_labels.append(input_elem)
+                    
+                    if inputs_without_labels:
+                        issues.append({
+                            "severity": "high",
+                            "issue": "Form inputs missing labels",
+                            "description": f"{len(inputs_without_labels)} form inputs lack proper labels",
+                            "impact": "Screen readers cannot identify form field purposes"
+                        })
+                        score -= 18
+                    
+                    # Check for proper heading hierarchy
+                    headings = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                    if headings:
+                        heading_levels = [int(h.name[1]) for h in headings]
+                        
+                        # Check if starts with h1
+                        if heading_levels and heading_levels[0] != 1:
+                            issues.append({
+                                "severity": "medium",
+                                "issue": "Page doesn't start with H1",
+                                "description": f"First heading is H{heading_levels[0]}",
+                                "impact": "Confusing content structure for screen readers"
+                            })
+                            score -= 12
+                        
+                        # Check for skipped heading levels
+                        for i in range(1, len(heading_levels)):
+                            if heading_levels[i] > heading_levels[i-1] + 1:
+                                issues.append({
+                                    "severity": "medium",
+                                    "issue": "Skipped heading levels",
+                                    "description": f"H{heading_levels[i-1]} followed by H{heading_levels[i]}",
+                                    "impact": "Broken content hierarchy for assistive technologies"
+                                })
+                                score -= 10
+                                break
+                    else:
+                        issues.append({
+                            "severity": "high",
+                            "issue": "No headings found",
+                            "description": "Page lacks heading structure",
+                            "impact": "Poor navigation for screen reader users"
+                        })
+                        score -= 15
+                    
+                    # Check for color contrast (basic check for common patterns)
+                    # This is a simplified check - real contrast requires color analysis
+                    style_tags = soup.find_all('style')
+                    inline_styles = [elem.get('style', '') for elem in soup.find_all(style=True)]
+                    
+                    low_contrast_patterns = [
+                        'color:#ccc', 'color:#ddd', 'color:#eee',
+                        'color:lightgray', 'color:lightgrey'
+                    ]
+                    
+                    has_potential_contrast_issues = False
+                    for style in style_tags:
+                        for pattern in low_contrast_patterns:
+                            if pattern in style.get_text().lower():
+                                has_potential_contrast_issues = True
+                                break
+                    
+                    for style in inline_styles:
+                        for pattern in low_contrast_patterns:
+                            if pattern in style.lower():
+                                has_potential_contrast_issues = True
+                                break
+                    
+                    if has_potential_contrast_issues:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Potential color contrast issues",
+                            "description": "Light colors detected that may have poor contrast",
+                            "impact": "Text may be difficult to read for users with visual impairments"
+                        })
+                        score -= 12
+                    
+                    # Check for keyboard navigation support
+                    interactive_elements = soup.find_all(['a', 'button', 'input', 'select', 'textarea'])
+                    elements_without_tabindex = [elem for elem in interactive_elements 
+                                               if elem.get('tabindex') == '-1']
+                    
+                    if len(elements_without_tabindex) > len(interactive_elements) * 0.5:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Many elements may not be keyboard accessible",
+                            "description": f"{len(elements_without_tabindex)} interactive elements have tabindex='-1'",
+                            "impact": "Keyboard users cannot navigate to these elements"
+                        })
+                        score -= 15
+                    
+                    # Check for ARIA landmarks
+                    landmarks = soup.find_all(attrs={'role': ['main', 'navigation', 'banner', 'contentinfo', 'complementary']})
+                    semantic_landmarks = soup.find_all(['main', 'nav', 'header', 'footer', 'aside'])
+                    
+                    total_landmarks = len(landmarks) + len(semantic_landmarks)
+                    if total_landmarks == 0:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "No ARIA landmarks found",
+                            "description": "Page lacks navigation landmarks",
+                            "impact": "Screen reader users cannot easily navigate page sections"
+                        })
+                        score -= 12
+                    
+                    # Check for skip links
+                    skip_links = soup.find_all('a', href=lambda x: x and x.startswith('#'))
+                    skip_to_main = [link for link in skip_links if 'main' in link.get_text().lower() or 'content' in link.get_text().lower()]
+                    
+                    if not skip_to_main:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Missing skip to main content link",
+                            "description": "No skip link found for keyboard navigation",
+                            "impact": "Keyboard users must tab through all navigation"
+                        })
+                        score -= 10
+                    
+                    # Check for language declaration
+                    lang_attr = soup.find('html').get('lang') if soup.find('html') else None
+                    if not lang_attr:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Missing language declaration",
+                            "description": "HTML element lacks lang attribute",
+                            "impact": "Screen readers may use incorrect pronunciation"
+                        })
+                        score -= 10
+                    
+                    # Check for table headers
+                    tables = soup.find_all('table')
+                    for table in tables:
+                        headers = table.find_all('th')
+                        if not headers:
+                            # Check if table has header row
+                            first_row = table.find('tr')
+                            if first_row and not first_row.find('th'):
+                                issues.append({
+                                    "severity": "medium",
+                                    "issue": "Data table missing headers",
+                                    "description": "Table found without proper header cells",
+                                    "impact": "Screen readers cannot associate data with headers"
+                                })
+                                score -= 12
+                                break
+                    
+                    # Check for video/audio accessibility
+                    videos = soup.find_all('video')
+                    audios = soup.find_all('audio')
+                    
+                    for video in videos:
+                        if not video.find('track', kind='captions') and not video.find('track', kind='subtitles'):
+                            issues.append({
+                                "severity": "high",
+                                "issue": "Video missing captions",
+                                "description": "Video content lacks captions or subtitles",
+                                "impact": "Deaf and hard-of-hearing users cannot access content"
+                            })
+                            score -= 20
+                            break
+                    
+                    # Check for focus indicators (basic check)
+                    focus_styles = []
+                    for style_tag in soup.find_all('style'):
+                        if ':focus' in style_tag.get_text():
+                            focus_styles.append(True)
+                    
+                    if not focus_styles and not soup.find_all(attrs={'style': lambda x: x and ':focus' in x}):
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "No custom focus styles detected",
+                            "description": "Page may rely only on browser default focus indicators",
+                            "impact": "Focus may be hard to see for keyboard users"
+                        })
+                        score -= 8
+                    
+                    # Check for descriptive link text
+                    links = soup.find_all('a', href=True)
+                    generic_link_texts = ['click here', 'read more', 'more', 'here', 'link']
+                    generic_links = [link for link in links 
+                                   if link.get_text().strip().lower() in generic_link_texts]
+                    
+                    if generic_links:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Generic link text found",
+                            "description": f"{len(generic_links)} links have non-descriptive text",
+                            "impact": "Screen reader users cannot understand link purpose"
+                        })
+                        score -= 8
+                    
+                    # Check for empty links or buttons
+                    empty_links = [link for link in soup.find_all('a') if not link.get_text().strip() and not link.find('img')]
+                    empty_buttons = [btn for btn in soup.find_all('button') if not btn.get_text().strip() and not btn.find('img')]
+                    
+                    if empty_links or empty_buttons:
+                        issues.append({
+                            "severity": "high",
+                            "issue": "Empty interactive elements",
+                            "description": f"Found {len(empty_links)} empty links and {len(empty_buttons)} empty buttons",
+                            "impact": "Screen readers cannot describe element purpose"
+                        })
+                        score -= 15
+            
+            return {
+                "score": max(0, score),
+                "issues": issues,
+                "recommendations": [
+                    "Add alt text to all informative images (empty alt for decorative)",
+                    "Associate labels with all form inputs",
+                    "Use proper heading hierarchy (H1, H2, H3...)",
+                    "Ensure sufficient color contrast (4.5:1 for normal text)",
+                    "Add ARIA landmarks for page navigation",
+                    "Include skip links for keyboard navigation",
+                    "Declare page language in HTML element",
+                    "Use descriptive text for links and buttons",
+                    "Provide captions for video content",
+                    "Ensure all interactive elements are keyboard accessible",
+                    "Test with screen readers and keyboard-only navigation",
+                    "Use semantic HTML elements when possible",
+                    "Provide focus indicators for interactive elements"
+                ]
+            }
+            
+        except Exception as e:
+            return {
+                "score": 0,
+                "issues": [{
+                    "severity": "critical",
+                    "issue": "Accessibility audit failed",
+                    "description": f"Could not perform accessibility audit: {str(e)}",
+                    "impact": "Unable to assess accessibility compliance"
+                }],
+                "recommendations": ["Ensure website is accessible and try again"]
+            }
+
 # API Routes
 @api_router.post("/signup")
 async def signup(user_data: UserCreate):

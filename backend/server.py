@@ -70,7 +70,7 @@ class WebsiteCreate(BaseModel):
 class AuditReport(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     website_id: str
-    audit_type: str  # 'Security', 'Performance', 'SEO', 'All'
+    audit_type: str  # 'Security', 'Performance', 'SEO', 'Accessibility', 'All'
     score: int
     issues: List[Dict[str, Any]]
     recommendations: List[str]
@@ -78,7 +78,7 @@ class AuditReport(BaseModel):
 
 class AuditRequest(BaseModel):
     website_id: str
-    audit_type: str = "All"  # 'Security', 'Performance', 'SEO', 'All'
+    audit_type: str = "All"  # 'Security', 'Performance', 'SEO', 'Accessibility', 'All'
 
 # Utility functions
 def hash_password(password: str) -> str:

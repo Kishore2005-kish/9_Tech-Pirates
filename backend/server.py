@@ -78,7 +78,7 @@ class AuditReport(BaseModel):
 
 class AuditRequest(BaseModel):
     website_id: str
-    audit_type: str = "All"  # 'SSL', 'Performance', 'SEO', 'All'
+    audit_type: str = "All"  # 'Security', 'Performance', 'SEO', 'All'
 
 # Utility functions
 def hash_password(password: str) -> str:

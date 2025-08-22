@@ -576,8 +576,8 @@ async def run_audit(audit_request: AuditRequest, current_user: User = Depends(ge
             
         else:
             # Run specific audit
-            if audit_request.audit_type == "SSL":
-                result = await auditor.audit_ssl(website_obj.url)
+            if audit_request.audit_type == "Security":
+                result = await auditor.audit_security(website_obj.url)
             elif audit_request.audit_type == "Performance":
                 result = await auditor.audit_performance(website_obj.url)
             elif audit_request.audit_type == "SEO":

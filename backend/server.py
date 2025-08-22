@@ -564,7 +564,7 @@ async def run_audit(audit_request: AuditRequest, current_user: User = Depends(ge
             )
             
             # Also save individual reports
-            for audit_type, result in [("SSL", ssl_result), ("Performance", performance_result), ("SEO", seo_result)]:
+            for audit_type, result in [("Security", ssl_result), ("Performance", performance_result), ("SEO", seo_result)]:
                 individual_report = AuditReport(
                     website_id=audit_request.website_id,
                     audit_type=audit_type,

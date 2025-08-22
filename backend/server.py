@@ -70,7 +70,7 @@ class WebsiteCreate(BaseModel):
 class AuditReport(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     website_id: str
-    audit_type: str  # 'SSL', 'Performance', 'SEO', 'All'
+    audit_type: str  # 'Security', 'Performance', 'SEO', 'All'
     score: int
     issues: List[Dict[str, Any]]
     recommendations: List[str]

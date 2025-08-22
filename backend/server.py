@@ -267,80 +267,214 @@ class WebsiteAuditor:
 
     @staticmethod
     async def audit_performance(url: str) -> Dict[str, Any]:
-        """Perform performance audit"""
+        """Perform comprehensive performance audit"""
         try:
             issues = []
             score = 100
             
-            # Measure page load time
+            # Measure page load time and collect metrics
             start_time = time.time()
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=30) as response:
                     content = await response.text()
                     load_time = time.time() - start_time
                     
-                    # Check response time
-                    if load_time > 3:
+                    # Response time analysis
+                    if load_time > 5:
+                        issues.append({
+                            "severity": "critical",
+                            "issue": "Very slow page load time",
+                            "description": f"Page took {load_time:.2f} seconds to load (should be under 3s)",
+                            "impact": "Users likely to abandon page, poor search rankings"
+                        })
+                        score -= 40
+                    elif load_time > 3:
                         issues.append({
                             "severity": "high",
                             "issue": "Slow page load time",
-                            "description": f"Page took {load_time:.2f} seconds to load (should be under 3s)"
+                            "description": f"Page took {load_time:.2f} seconds to load (should be under 3s)",
+                            "impact": "Reduced user experience and SEO ranking"
                         })
-                        score -= 30
+                        score -= 25
                     elif load_time > 1.5:
                         issues.append({
                             "severity": "medium",
                             "issue": "Moderate page load time",
-                            "description": f"Page took {load_time:.2f} seconds to load (optimal is under 1.5s)"
+                            "description": f"Page took {load_time:.2f} seconds to load (optimal is under 1.5s)",
+                            "impact": "Room for improvement in user experience"
                         })
-                        score -= 15
+                        score -= 10
                     
-                    # Check response size
+                    # Check response size and compression
                     content_size = len(content.encode('utf-8'))
-                    if content_size > 1024 * 1024:  # 1MB
+                    content_length = response.headers.get('content-length')
+                    
+                    if content_size > 2 * 1024 * 1024:  # 2MB
+                        issues.append({
+                            "severity": "high", 
+                            "issue": "Very large page size",
+                            "description": f"Page size is {content_size // 1024}KB (should be under 1MB)",
+                            "impact": "Slow loading on mobile networks, high bandwidth usage"
+                        })
+                        score -= 25
+                    elif content_size > 1024 * 1024:  # 1MB
                         issues.append({
                             "severity": "medium",
                             "issue": "Large page size",
-                            "description": f"Page size is {content_size // 1024}KB (consider optimization)"
+                            "description": f"Page size is {content_size // 1024}KB (consider optimization)",
+                            "impact": "Slower loading times, especially on mobile"
                         })
-                        score -= 20
+                        score -= 15
                     
-                    # Check for optimization opportunities
-                    if 'text/css' not in response.headers.get('content-type', ''):
-                        soup = BeautifulSoup(content, 'html.parser')
-                        
-                        # Check for unoptimized images
-                        images = soup.find_all('img')
-                        large_images = [img for img in images if not img.get('loading') == 'lazy']
-                        if len(large_images) > 5:
-                            issues.append({
-                                "severity": "low",
-                                "issue": "Images not optimized for lazy loading",
-                                "description": f"Found {len(large_images)} images without lazy loading"
-                            })
-                            score -= 10
-                        
-                        # Check for inline CSS/JS
-                        inline_styles = soup.find_all('style')
-                        inline_scripts = soup.find_all('script', src=False)
-                        if len(inline_styles) > 3 or len(inline_scripts) > 3:
-                            issues.append({
-                                "severity": "low",
-                                "issue": "Excessive inline CSS/JavaScript",
-                                "description": "Consider moving inline styles and scripts to external files"
-                            })
-                            score -= 10
+                    # Check compression
+                    if 'gzip' not in response.headers.get('content-encoding', '') and 'br' not in response.headers.get('content-encoding', ''):
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "No compression detected",
+                            "description": "Content is not compressed (gzip/brotli)",
+                            "impact": "Larger file sizes and slower load times"
+                        })
+                        score -= 15
+                    
+                    # Check caching headers
+                    cache_control = response.headers.get('cache-control', '')
+                    expires = response.headers.get('expires', '')
+                    etag = response.headers.get('etag', '')
+                    
+                    if not cache_control and not expires and not etag:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "No caching headers detected",
+                            "description": "Missing Cache-Control, Expires, or ETag headers",
+                            "impact": "Resources downloaded every visit, slower repeat visits"
+                        })
+                        score -= 12
+                    
+                    # Analyze HTML content for performance issues
+                    soup = BeautifulSoup(content, 'html.parser')
+                    
+                    # Check for render-blocking resources
+                    css_links = soup.find_all('link', rel='stylesheet')
+                    blocking_css = [link for link in css_links if not link.get('media') or link.get('media') == 'all']
+                    
+                    if len(blocking_css) > 5:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Multiple render-blocking CSS files",
+                            "description": f"Found {len(blocking_css)} CSS files that block rendering",
+                            "impact": "Delayed page rendering and First Contentful Paint"
+                        })
+                        score -= 12
+                    
+                    # Check for synchronous JavaScript
+                    script_tags = soup.find_all('script', src=True)
+                    blocking_scripts = [script for script in script_tags if not script.get('async') and not script.get('defer')]
+                    
+                    if len(blocking_scripts) > 3:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Multiple render-blocking JavaScript files",
+                            "description": f"Found {len(blocking_scripts)} JS files without async/defer",
+                            "impact": "Blocked HTML parsing and delayed page rendering"
+                        })
+                        score -= 12
+                    
+                    # Check images for optimization opportunities
+                    images = soup.find_all('img')
+                    
+                    # Check for missing lazy loading
+                    images_without_lazy = [img for img in images if not img.get('loading') == 'lazy']
+                    if len(images_without_lazy) > 5:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Images not optimized for lazy loading",
+                            "description": f"Found {len(images_without_lazy)} images without lazy loading",
+                            "impact": "Unnecessary bandwidth usage and slower initial load"
+                        })
+                        score -= 10
+                    
+                    # Check for missing alt attributes (affects accessibility but also SEO performance)
+                    images_without_alt = [img for img in images if not img.get('alt')]
+                    if len(images_without_alt) > 0:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Images missing alt attributes",
+                            "description": f"{len(images_without_alt)} images lack alt text",
+                            "impact": "Poor accessibility and SEO performance"
+                        })
+                        score -= 5
+                    
+                    # Check for modern image formats
+                    webp_images = [img for img in images if img.get('src', '').endswith('.webp')]
+                    total_images = len(images)
+                    if total_images > 3 and len(webp_images) == 0:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "No modern image formats detected",
+                            "description": "Consider using WebP or AVIF for better compression",
+                            "impact": "Larger image file sizes than necessary"
+                        })
+                        score -= 8
+                    
+                    # Check for excessive DOM size
+                    all_elements = soup.find_all()
+                    dom_size = len(all_elements)
+                    
+                    if dom_size > 3000:
+                        issues.append({
+                            "severity": "medium",
+                            "issue": "Large DOM size",
+                            "description": f"Page has {dom_size} DOM elements (recommended: under 1500)",
+                            "impact": "Slower rendering and increased memory usage"
+                        })
+                        score -= 12
+                    elif dom_size > 1500:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Moderate DOM size",
+                            "description": f"Page has {dom_size} DOM elements (optimal: under 1500)",
+                            "impact": "Potential performance impact on slower devices"
+                        })
+                        score -= 6
+                    
+                    # Check for inline CSS and JS (performance anti-pattern)
+                    inline_styles = soup.find_all('style')
+                    inline_scripts = soup.find_all('script', src=False)
+                    
+                    if len(inline_styles) > 2 or len(inline_scripts) > 2:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Excessive inline CSS/JavaScript",
+                            "description": f"Found {len(inline_styles)} inline styles and {len(inline_scripts)} inline scripts",
+                            "impact": "Prevents caching and increases page size"
+                        })
+                        score -= 8
+                    
+                    # Check for HTTP/2 server push opportunities (if HTTP/1.1)
+                    if response.version.major == 1:
+                        issues.append({
+                            "severity": "low",
+                            "issue": "Using HTTP/1.1 instead of HTTP/2",
+                            "description": "Server does not support HTTP/2",
+                            "impact": "Missing multiplexing and performance benefits"
+                        })
+                        score -= 5
             
             return {
                 "score": max(0, score),
                 "issues": issues,
                 "recommendations": [
-                    "Optimize images and use modern formats (WebP, AVIF)",
-                    "Enable browser caching and compression",
+                    "Optimize images (compress, use WebP/AVIF formats)",
+                    "Enable Gzip/Brotli compression on server",
+                    "Implement browser caching with appropriate headers",
                     "Minify CSS, JavaScript, and HTML",
+                    "Use lazy loading for images below the fold",
+                    "Add async/defer attributes to non-critical JavaScript",
+                    "Reduce DOM complexity and nesting",
                     "Use a Content Delivery Network (CDN)",
-                    "Implement lazy loading for images",
-                    "Reduce server response time"
+                    "Enable HTTP/2 on your server",
+                    "Eliminate render-blocking resources in critical path",
+                    "Implement resource hints (preload, prefetch, preconnect)"
                 ]
             }
             
@@ -348,9 +482,10 @@ class WebsiteAuditor:
             return {
                 "score": 0,
                 "issues": [{
-                    "severity": "high",
+                    "severity": "critical",
                     "issue": "Performance audit failed",
-                    "description": f"Could not perform performance audit: {str(e)}"
+                    "description": f"Could not perform performance audit: {str(e)}",
+                    "impact": "Unable to assess performance bottlenecks"
                 }],
                 "recommendations": ["Ensure website is accessible and try again"]
             }
